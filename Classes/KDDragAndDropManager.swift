@@ -24,10 +24,9 @@
 
 import UIKit
 
-public protocol KDDraggable {
+@objc public protocol KDDraggable {
     func canDragAtPoint(_ point : CGPoint) -> Bool
     func representationImageAtPoint(_ point : CGPoint) -> UIView?
-    func stylingRepresentationView(_ view: UIView) -> UIView?
     func dataItemAtPoint(_ point : CGPoint) -> AnyObject?
     func dragDataItem(_ item : AnyObject) -> Void
     
@@ -47,14 +46,18 @@ public protocol KDDroppable {
     func didMoveItem(_ item : AnyObject, inRect rect : CGRect) -> Void
     func didMoveOutItem(_ item : AnyObject) -> Void
     func dropDataItem(_ item : AnyObject, atRect : CGRect) -> Void
+    func draggingOriginOfCell() -> CGPoint?
 }
 
-public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
+@available(iOS 10.0, *)
+@objcMembers public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
     
     fileprivate var canvas : UIView = UIView()
     fileprivate var views : [UIView] = []
     fileprivate var longPressGestureRecogniser = UILongPressGestureRecognizer()
     
+    @objc public var didBeginDragging: (() -> Void)?
+    @objc public var didEndDragging: (() -> Void)?
     
     struct Bundle {
         var offset : CGPoint = CGPoint.zero
@@ -65,6 +68,8 @@ public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
     }
     var bundle : Bundle?
     
+    var animator: UIViewPropertyAnimator = UIViewPropertyAnimator()
+    
     public init(canvas : UIView, collectionViews : [UIView]) {
         
         super.init()
@@ -72,7 +77,7 @@ public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
         self.canvas = canvas
         
         self.longPressGestureRecogniser.delegate = self
-        self.longPressGestureRecogniser.minimumPressDuration = 0.3
+        self.longPressGestureRecogniser.minimumPressDuration = 0.45
         self.longPressGestureRecogniser.addTarget(self, action: #selector(KDDragAndDropManager.updateForLongPress(_:)))
         self.canvas.isMultipleTouchEnabled = false
         self.canvas.addGestureRecognizer(self.longPressGestureRecogniser)
@@ -91,13 +96,9 @@ public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
             
             guard draggable.canDragAtPoint(touchPointInView) == true else { continue }
             
-            guard var representation = draggable.representationImageAtPoint(touchPointInView) else { continue }
+            guard let representation = draggable.representationImageAtPoint(touchPointInView) else { continue }
             
             representation.frame = self.canvas.convert(representation.frame, from: view)
-            representation.alpha = 0.5
-            if let decoredView = draggable.stylingRepresentationView(representation) {
-                representation = decoredView
-            }
             
             let pointOnCanvas = touch.location(in: self.canvas)
             
@@ -133,17 +134,50 @@ public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
         
         switch recogniser.state {
             
-            
         case .began :
             self.canvas.addSubview(bundle.representationImageView)
-            sourceDraggable.startDraggingAtPoint(pointOnSourceDraggable)
             
+            sourceDraggable.startDraggingAtPoint(pointOnSourceDraggable)
+            self.didBeginDragging?()
+            
+            // TODO: Create a callback for getting frame for overlay
+            let overlayView = UIView(frame: CGRect(x: 13, y: 14, width: 60, height: 60))
+            overlayView.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+            overlayView.layer.masksToBounds = true
+            overlayView.layer.cornerRadius = 10
+            bundle.representationImageView.addSubview(overlayView)
+            
+            UIView.animateKeyframes(withDuration: 0.3, delay: 0.0, options: .calculationModeCubic, animations: {
+                
+                UIView.animateKeyframes(withDuration: 0.15, delay: 0.0, animations: {
+                    overlayView.alpha = 0.0
+                }, completion: { (_) in
+                    overlayView.removeFromSuperview()
+                })
+                
+                UIView.animateKeyframes(withDuration: 0.15, delay: 0.15, animations: {
+                    bundle.representationImageView.transform = CGAffineTransform(scaleX: 1.2, y: 1.2)
+                    bundle.representationImageView.alpha = 0.7
+                })
+            })
+            //        case .possible:
+            //            print("touch stopped")
+        //            fallthrough
         case .changed :
             
             // Update the frame of the representation image
-            var repImgFrame = bundle.representationImageView.frame
-            repImgFrame.origin = CGPoint(x: pointOnCanvas.x - bundle.offset.x, y: pointOnCanvas.y - bundle.offset.y);
-            bundle.representationImageView.frame = repImgFrame
+            //            var repImgFrame = bundle.representationImageView.frame
+            
+            
+            animator.addAnimations {
+                bundle.representationImageView.center = pointOnCanvas
+            }
+            
+            if #available(iOS 10.0, *) {
+                animator.startAnimation()
+            } else {
+                // Fallback on earlier versions
+            }
             
             var overlappingAreaMAX: CGFloat = 0.0
             
@@ -213,8 +247,24 @@ public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
                 }
             }
             
-            bundle.representationImageView.removeFromSuperview()
-            sourceDraggable.stopDragging()
+            animator.stopAnimation(true)
+            
+            var destinationPoint: CGPoint = CGPoint.zero
+            if let droppable = bundle.sourceDraggableView as? KDDroppable, let point = droppable.draggingOriginOfCell() {
+                destinationPoint = self.canvas.convert(point, from: bundle.sourceDraggableView)
+            }
+            
+            UIView.animate(withDuration: 0.1, animations: {
+                bundle.representationImageView.transform = CGAffineTransform.identity
+                bundle.representationImageView.alpha = 1.0
+                if destinationPoint != CGPoint.zero {
+                    bundle.representationImageView.frame.origin = destinationPoint
+                }
+            }) { (_) in
+                bundle.representationImageView.removeFromSuperview()
+                sourceDraggable.stopDragging()
+                self.didEndDragging?()
+            }
             
         default:
             break
