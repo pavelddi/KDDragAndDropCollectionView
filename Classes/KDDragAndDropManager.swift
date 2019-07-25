@@ -227,10 +227,8 @@ public protocol KDDroppable {
                     self.bundle!.overDroppableView = mainOverView
                     
                     droppable.didMoveItem(bundle.dataItem, inRect: rect)
-                    
                 }
             }
-            
             
         case .ended :
             

@@ -33,6 +33,8 @@ import UIKit
     func collectionView(_ collectionView: UICollectionView, insertDataItem dataItem : AnyObject, atIndexPath indexPath: IndexPath) -> Void
     func collectionView(_ collectionView: UICollectionView, deleteDataItemAtIndexPath indexPath: IndexPath) -> Void
     func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool
+    
+    func shouldAnchorFirstItem() -> Bool
 }
 
 @available(iOS 10.0, *)
@@ -335,19 +337,19 @@ import UIKit
             //            DispatchQueue.main.asyncAfter(deadline: delayTime) {
             //                self.paging = false
             //            }
-            
         }
-        
     }
     
     public func didMoveItem(_ item : AnyObject, inRect rect : CGRect) -> Void {
-        
         let dragDropDS = self.dataSource as! KDDragAndDropCollectionViewDataSource // guaranteed to have a ds
         
         if  let existingIndexPath = dragDropDS.collectionView(self, indexPathForDataItem: item),
             let indexPath = self.indexPathForCellOverlappingRect(rect) {
             
-            if indexPath.item != existingIndexPath.item && indexPath.row != 0 {
+            let anchorFirst = dragDropDS.shouldAnchorFirstItem()
+            let isFirstElement = indexPath.row == 0
+            let shouldMove = !(isFirstElement && anchorFirst)
+            if indexPath.item != existingIndexPath.item && shouldMove {
                 
                 dragDropDS.collectionView(self, moveDataItemFromIndexPath: existingIndexPath, toIndexPath: indexPath)
                 
@@ -361,7 +363,6 @@ import UIKit
                 })
                 
                 self.draggingPathOfCellBeingDragged = indexPath
-                
             }
         }
         
@@ -369,7 +370,6 @@ import UIKit
     }
     
     public func didMoveOutItem(_ item : AnyObject) -> Void {
-        
         guard let dragDropDataSource = self.dataSource as? KDDragAndDropCollectionViewDataSource,
             let existngIndexPath = dragDropDataSource.collectionView(self, indexPathForDataItem: item) else {
                 
