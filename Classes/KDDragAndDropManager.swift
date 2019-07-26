@@ -58,6 +58,7 @@ public protocol KDDroppable {
     
     @objc public var didBeginDragging: (() -> Void)?
     @objc public var didEndDragging: (() -> Void)?
+    @objc public var changeEditionMode: ((_ isInEditionMode: Bool) -> Void)?
     
     struct Bundle {
         var offset : CGPoint = CGPoint.zero
@@ -69,6 +70,7 @@ public protocol KDDroppable {
     var bundle : Bundle?
     
     var animator: UIViewPropertyAnimator = UIViewPropertyAnimator()
+    var isInEditMode = false
     
     public init(canvas : UIView, collectionViews : [UIView]) {
         
@@ -77,11 +79,14 @@ public protocol KDDroppable {
         self.canvas = canvas
         
         self.longPressGestureRecogniser.delegate = self
-        self.longPressGestureRecogniser.minimumPressDuration = 0.45
+        self.longPressGestureRecogniser.minimumPressDuration = 1
         self.longPressGestureRecogniser.addTarget(self, action: #selector(KDDragAndDropManager.updateForLongPress(_:)))
         self.canvas.isMultipleTouchEnabled = false
         self.canvas.addGestureRecognizer(self.longPressGestureRecogniser)
+        
         self.views = collectionViews
+        
+        self.isInEditMode = false
     }
     
     public func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
@@ -117,14 +122,16 @@ public protocol KDDroppable {
                 return true
                 
             }
-            
         }
-        
         return false
-        
     }
     
     @objc public func updateForLongPress(_ recogniser : UILongPressGestureRecognizer) -> Void {
+        if self.tryActivateEditMode() {
+            recogniser.isEnabled = false
+            recogniser.isEnabled = true
+            return
+        }
         
         guard let bundle = self.bundle else { return }
         
@@ -269,6 +276,26 @@ public protocol KDDroppable {
             
         }
         
+    }
+    
+    //MARK: - Edit mode
+    public func tryCancelEditMode() {
+        if self.isInEditMode {
+            self.isInEditMode = false
+            changeEditionMode?(self.isInEditMode)
+            self.longPressGestureRecogniser.minimumPressDuration = 1
+            return
+        }
+    }
+    
+    private func tryActivateEditMode() -> Bool {
+        if !self.isInEditMode {
+            self.isInEditMode = true
+            changeEditionMode?(self.isInEditMode)
+            self.longPressGestureRecogniser.minimumPressDuration = 0.45
+            return true
+        }
+        return false
     }
     
     // MARK: Helper Methods

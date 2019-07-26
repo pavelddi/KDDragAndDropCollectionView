@@ -63,7 +63,6 @@ import UIKit
         super.init(frame: frame, collectionViewLayout: layout)
     }
     
-    
     // MARK : KDDraggable
     public func canDragAtPoint(_ point : CGPoint) -> Bool {
         if let dataSource = self.dataSource as? KDDragAndDropCollectionViewDataSource,
@@ -75,7 +74,6 @@ import UIKit
     }
     
     public func representationImageAtPoint(_ point : CGPoint) -> UIView? {
-        
         guard let indexPath = self.indexPathForItem(at: point) else {
             return nil
         }
@@ -108,8 +106,6 @@ import UIKit
         return dragDropDS.collectionView(self, dataItemForIndexPath: indexPath)
     }
     
-    
-    
     public func startDraggingAtPoint(_ point : CGPoint) -> Void {
         
         self.draggingPathOfCellBeingDragged = self.indexPathForItem(at: point)
@@ -128,11 +124,9 @@ import UIKit
             
             self.checkForEdgesAndScroll(normalizedRect)
         })
-        
     }
     
     public func stopDragging() -> Void {
-        
         if let idx = self.draggingPathOfCellBeingDragged {
             if let cell = self.cellForItem(at: idx) {
                 cell.isHidden = false
@@ -151,7 +145,6 @@ import UIKit
     }
     
     public func dragDataItem(_ item : AnyObject) -> Void {
-        
         guard let dragDropDataSource = self.dataSource as? KDDragAndDropCollectionViewDataSource else {
             return
         }
@@ -176,18 +169,14 @@ import UIKit
                 self.reloadData()
             })
         }
-        
     }
     
-    // MARK : KDDroppable
-    
+    //MARK : KDDroppable
     public func canDropAtRect(_ rect : CGRect) -> Bool {
-        
         return (self.indexPathForCellOverlappingRect(rect) != nil)
     }
     
     public func indexPathForCellOverlappingRect( _ rect : CGRect) -> IndexPath? {
-        
         var overlappingArea : CGFloat = 0.0
         var cellCandidate : UICollectionViewCell?
         
@@ -228,7 +217,6 @@ import UIKit
     
     fileprivate var currentInRect : CGRect?
     public func willMoveItem(_ item : AnyObject, inRect rect : CGRect) -> Void {
-        
         let dragDropDataSource = self.dataSource as! KDDragAndDropCollectionViewDataSource // its guaranteed to have a data source
         
         if let _ = dragDropDataSource.collectionView(self, indexPathForDataItem: item) { // if data item exists
@@ -265,9 +253,7 @@ import UIKit
             })
             
         }
-        
         currentInRect = rect
-        
     }
     
     public var isHorizontal : Bool {
