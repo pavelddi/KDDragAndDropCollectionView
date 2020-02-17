@@ -146,8 +146,10 @@ import UIKit
         self.timer?.invalidate()
         self.timer = nil
         
-        self.animator.stopAnimation(true)
-        self.animator.finishAnimation(at: UIViewAnimatingPosition.current)
+        if (self.animator.state != .stopped) {
+            self.animator.stopAnimation(false)
+            self.animator.finishAnimation(at: UIViewAnimatingPosition.current)
+        }
     }
     
     public func dragDataItem(_ item : AnyObject) -> Void {
@@ -321,7 +323,9 @@ import UIKit
         
         // check to see if a change in rectForNextScroll has been made
         if currentRect.equalTo(rectForNextScroll) == false {
-            animator.stopAnimation(true)
+            if (animator.state != .stopped) {
+                animator.stopAnimation(true)
+            }
             
             animator.addAnimations {
                 
@@ -413,18 +417,16 @@ import UIKit
             
             cell.alpha = 1.0
             cell.isHidden = false
-            
-            
-            
         }
         
         currentInRect = nil
-        self.animator.stopAnimation(false)
+        if (animator.state != .stopped) {
+            self.animator.stopAnimation(true)
+        }
         
         self.draggingPathOfCellBeingDragged = nil
         
         self.reloadData()
-        
     }
     
     public func draggingOriginOfCell() -> CGPoint? {

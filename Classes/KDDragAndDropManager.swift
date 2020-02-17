@@ -58,6 +58,7 @@ public protocol KDDroppable {
     
     @objc public var didBeginDragging: (() -> Void)?
     @objc public var didEndDragging: (() -> Void)?
+    @objc public var didDropIntoRemoveView: (() -> Void)?
     
     struct Bundle {
         var offset : CGPoint = CGPoint.zero
@@ -70,11 +71,27 @@ public protocol KDDroppable {
     
     var animator: UIViewPropertyAnimator = UIViewPropertyAnimator()
     
+    var dropToDeleteView: UIView?
+    
     public init(canvas : UIView, collectionViews : [UIView]) {
         
         super.init()
         
         self.canvas = canvas
+        
+        self.longPressGestureRecogniser.delegate = self
+        self.longPressGestureRecogniser.minimumPressDuration = 0.45
+        self.longPressGestureRecogniser.addTarget(self, action: #selector(KDDragAndDropManager.updateForLongPress(_:)))
+        self.canvas.isMultipleTouchEnabled = false
+        self.canvas.addGestureRecognizer(self.longPressGestureRecogniser)
+        self.views = collectionViews
+    }
+    
+    public init(canvas : UIView, collectionViews : [UIView], dropToDeleteView : UIView? = nil) {
+        super.init()
+        
+        self.canvas = canvas
+        self.dropToDeleteView = dropToDeleteView
         
         self.longPressGestureRecogniser.delegate = self
         self.longPressGestureRecogniser.minimumPressDuration = 0.45
@@ -232,6 +249,22 @@ public protocol KDDroppable {
             
         case .ended :
             
+            // FIXME: Add all the new code to the repo on GH
+            if let dropView = dropToDeleteView {
+                if checkIfCellDroppedIn(dropView: dropView, bundle: bundle) {
+                    if let droppable = bundle.overDroppableView as? KDDroppable {
+                        sourceDraggable.dragDataItem(bundle.dataItem)
+                        let rect = self.canvas.convert(bundle.representationImageView.frame, to: bundle.overDroppableView)
+                        droppable.dropDataItem(bundle.dataItem, atRect: rect)
+                        bundle.representationImageView.removeFromSuperview()
+                        sourceDraggable.stopDragging()
+                        self.didDropIntoRemoveView?()
+                        return
+                        //self.didEndDragging?()
+                    }
+                }
+            }
+            
             if bundle.sourceDraggableView != bundle.overDroppableView { // if we are actually dropping over a new view.
                 
                 if let droppable = bundle.overDroppableView as? KDDroppable {
@@ -288,6 +321,26 @@ public protocol KDDroppable {
         }
         
         return r
+    }
+    
+    private func checkIfCellDroppedIn(dropView: UIView, bundle: Bundle) -> Bool {
+        // Check if current item is over dropToDelete view
+        print("Drop view rect - \(dropView.frame)")
+        print("Current cell frame - \(bundle.representationImageView.frame)")
+        
+        let representationViewFrame = bundle.representationImageView.frame
+        /** If representation image view is dropped in bounds of dropView
+            send deletion callback to the delegate
+         */
+        let minX = dropView.frame.origin.x
+        let minY = dropView.frame.origin.y
+        let maxX = dropView.frame.size.width
+        let maxY = dropView.frame.size.height
+        
+        let isWithinXCoordinate = representationViewFrame.origin.x >= minX && representationViewFrame.origin.x <= maxX
+        let isWithinYCoordinate = representationViewFrame.origin.y >= minY && representationViewFrame.origin.y <= maxY
+        
+        return isWithinXCoordinate && isWithinYCoordinate
     }
     
 }
