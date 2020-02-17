@@ -24,7 +24,7 @@
 
 import UIKit
 
-public protocol KDDragAndDropCollectionViewDataSource : UICollectionViewDataSource {
+@objc public protocol KDDragAndDropCollectionViewDataSource : UICollectionViewDataSource {
     
     func collectionView(_ collectionView: UICollectionView, indexPathForDataItem dataItem: AnyObject) -> IndexPath?
     func collectionView(_ collectionView: UICollectionView, dataItemForIndexPath indexPath: IndexPath) -> AnyObject
@@ -32,26 +32,13 @@ public protocol KDDragAndDropCollectionViewDataSource : UICollectionViewDataSour
     func collectionView(_ collectionView: UICollectionView, moveDataItemFromIndexPath from: IndexPath, toIndexPath to : IndexPath) -> Void
     func collectionView(_ collectionView: UICollectionView, insertDataItem dataItem : AnyObject, atIndexPath indexPath: IndexPath) -> Void
     func collectionView(_ collectionView: UICollectionView, deleteDataItemAtIndexPath indexPath: IndexPath) -> Void
+    func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool
     
-    /* optional */ func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool
-    /* optional */ func collectionView(_ collectionView: UICollectionView, cellIsDroppableAtIndexPath indexPath: IndexPath) -> Bool
-    
-    /* optional */ func collectionView(_ collectionView: UICollectionView, stylingRepresentationView: UIView) -> UIView?
+    func shouldAnchorFirstItem() -> Bool
 }
 
-extension KDDragAndDropCollectionViewDataSource {
-    public func collectionView(_ collectionView: UICollectionView, stylingRepresentationView: UIView) -> UIView? {
-        return nil
-    }
-    func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool {
-        return true
-    }
-    func collectionView(_ collectionView: UICollectionView, cellIsDroppableAtIndexPath indexPath: IndexPath) -> Bool {
-        return true
-    }
-}
-
-open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppable {
+@available(iOS 10.0, *)
+@objcMembers public class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppable {
     
     required public init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
@@ -61,6 +48,11 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
     
     var iDataSource : UICollectionViewDataSource?
     var iDelegate : UICollectionViewDelegate?
+    
+    let animator = UIViewPropertyAnimator(duration: 0.20,
+                                          timingParameters:UICubicTimingParameters(animationCurve: .linear))
+    
+    var timer: Timer?
     
     override open func awakeFromNib() {
         super.awakeFromNib()
@@ -103,13 +95,6 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         return imageView
     }
     
-    public func stylingRepresentationView(_ view: UIView) -> UIView? {
-        guard let dataSource = self.dataSource as? KDDragAndDropCollectionViewDataSource else {
-            return nil
-        }
-        return dataSource.collectionView(self, stylingRepresentationView: view)
-    }
-    
     public func dataItemAtPoint(_ point : CGPoint) -> AnyObject? {
         
         guard let indexPath = self.indexPathForItem(at: point) else {
@@ -131,6 +116,19 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         
         self.reloadData()
         
+        self.timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true, block: { (timer) in
+            // Check Paging
+            var normalizedRect = self.currentInRect ?? CGRect.zero
+            normalizedRect.origin.x -= self.contentOffset.x
+            normalizedRect.origin.y -= self.contentOffset.y
+            
+            //            NSLog("%@", NSStringFromCGRect(normalizedRect));
+            
+            self.currentInRect = normalizedRect
+            
+            self.checkForEdgesAndScroll(normalizedRect)
+        })
+        
     }
     
     public func stopDragging() -> Void {
@@ -145,6 +143,13 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         
         self.reloadData()
         
+        self.timer?.invalidate()
+        self.timer = nil
+        
+        if (self.animator.state != .stopped) {
+            self.animator.stopAnimation(false)
+            self.animator.finishAnimation(at: UIViewAnimatingPosition.current)
+        }
     }
     
     public func dragDataItem(_ item : AnyObject) -> Void {
@@ -187,7 +192,6 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         
         var overlappingArea : CGFloat = 0.0
         var cellCandidate : UICollectionViewCell?
-        let dataSource = self.dataSource as? KDDragAndDropCollectionViewDataSource
         
         
         let visibleCells = self.visibleCells
@@ -198,10 +202,7 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         if  isHorizontal && rect.origin.x > self.contentSize.width ||
             !isHorizontal && rect.origin.y > self.contentSize.height {
             
-            if dataSource?.collectionView(self, cellIsDroppableAtIndexPath: IndexPath(row: visibleCells.count - 1, section: 0)) == true {
-                return IndexPath(row: visibleCells.count - 1, section: 0)
-            }
-            return nil
+            return IndexPath(row: visibleCells.count - 1, section: 0)
         }
         
         
@@ -218,7 +219,7 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
             
         }
         
-        if let cellRetrieved = cellCandidate, let indexPath = self.indexPath(for: cellRetrieved), dataSource?.collectionView(self, cellIsDroppableAtIndexPath: indexPath) == true {
+        if let cellRetrieved = cellCandidate {
             
             return self.indexPath(for: cellRetrieved)
         }
@@ -244,6 +245,8 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
             
             self.animating = true
             
+            animator.stopAnimation(false)
+            
             self.performBatchUpdates({ () -> Void in
                 
                 self.insertItems(at: [indexPath])
@@ -256,6 +259,8 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
                 if self.draggingPathOfCellBeingDragged == nil {
                     
                     self.reloadData()
+                    
+                    
                 }
                 
                 
@@ -285,17 +290,19 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         
         if isHorizontal {
             
-            let leftBoundary = CGRect(x: -30.0, y: 0.0, width: 30.0, height: self.frame.size.height)
-            let rightBoundary = CGRect(x: self.frame.size.width, y: 0.0, width: 30.0, height: self.frame.size.height)
+            let leftBoundary = CGRect(x: -40, y: 0.0, width: 40, height: self.frame.size.height)
+            let rightBoundary = CGRect(x: self.frame.size.width, y: 0.0, width: 40, height: self.frame.size.height)
+            
+            let scrollMultiplier: CGFloat = 0.1
             
             if rect.intersects(leftBoundary) == true {
-                rectForNextScroll.origin.x -= self.bounds.size.width * 0.5
+                rectForNextScroll.origin.x -= self.bounds.size.width * scrollMultiplier
                 if rectForNextScroll.origin.x < 0 {
                     rectForNextScroll.origin.x = 0
                 }
             }
             else if rect.intersects(rightBoundary) == true {
-                rectForNextScroll.origin.x += self.bounds.size.width * 0.5
+                rectForNextScroll.origin.x += self.bounds.size.width * scrollMultiplier
                 if rectForNextScroll.origin.x > self.contentSize.width - self.bounds.size.width {
                     rectForNextScroll.origin.x = self.contentSize.width - self.bounds.size.width
                 }
@@ -303,45 +310,50 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
             
         } else { // is vertical
             
-            let topBoundary = CGRect(x: 0.0, y: -30.0, width: self.frame.size.width, height: 30.0)
-            let bottomBoundary = CGRect(x: 0.0, y: self.frame.size.height, width: self.frame.size.width, height: 30.0)
-            
-            if rect.intersects(topBoundary) == true {
-                rectForNextScroll.origin.y -= self.bounds.size.height * 0.5
-                if rectForNextScroll.origin.y < 0 {
-                    rectForNextScroll.origin.y = 0
-                }
-            }
-            else if rect.intersects(bottomBoundary) == true {
-                rectForNextScroll.origin.y += self.bounds.size.height * 0.5
-                if rectForNextScroll.origin.y > self.contentSize.height - self.bounds.size.height {
-                    rectForNextScroll.origin.y = self.contentSize.height - self.bounds.size.height
-                }
-            }
+            //            let topBoundary = CGRect(x: 0.0, y: -30.0, width: self.frame.size.width, height: 30.0)
+            //            let bottomBoundary = CGRect(x: 0.0, y: self.frame.size.height, width: self.frame.size.width, height: 30.0)
+            //
+            //            if rect.intersects(topBoundary) == true {
+            //
+            //            }
+            //            else if rect.intersects(bottomBoundary) == true {
+            //
+            //            }
         }
         
         // check to see if a change in rectForNextScroll has been made
         if currentRect.equalTo(rectForNextScroll) == false {
-            self.paging = true
-            self.scrollRectToVisible(rectForNextScroll, animated: true)
-            
-            let delayTime = DispatchTime.now() + Double(Int64(1 * Double(NSEC_PER_SEC))) / Double(NSEC_PER_SEC)
-            DispatchQueue.main.asyncAfter(deadline: delayTime) {
-                self.paging = false
+            if (animator.state != .stopped) {
+                animator.stopAnimation(true)
             }
             
+            animator.addAnimations {
+                
+                print("\(rectForNextScroll)")
+                
+                self.scrollRectToVisible(rectForNextScroll, animated: false)
+            }
+            
+            animator.startAnimation()
+            
+            
+            //            let delayTime = DispatchTime.now() + Double(Int64(0.75 * Double(NSEC_PER_SEC))) / Double(NSEC_PER_SEC)
+            //            DispatchQueue.main.asyncAfter(deadline: delayTime) {
+            //                self.paging = false
+            //            }
         }
-        
     }
     
     public func didMoveItem(_ item : AnyObject, inRect rect : CGRect) -> Void {
-        
         let dragDropDS = self.dataSource as! KDDragAndDropCollectionViewDataSource // guaranteed to have a ds
         
         if  let existingIndexPath = dragDropDS.collectionView(self, indexPathForDataItem: item),
             let indexPath = self.indexPathForCellOverlappingRect(rect) {
             
-            if indexPath.item != existingIndexPath.item {
+            let anchorFirst = dragDropDS.shouldAnchorFirstItem()
+            let isFirstElement = indexPath.row == 0
+            let shouldMove = !(isFirstElement && anchorFirst)
+            if indexPath.item != existingIndexPath.item && shouldMove {
                 
                 dragDropDS.collectionView(self, moveDataItemFromIndexPath: existingIndexPath, toIndexPath: indexPath)
                 
@@ -352,30 +364,16 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
                 }, completion: { (finished) -> Void in
                     self.animating = false
                     self.reloadData()
-                    
                 })
                 
                 self.draggingPathOfCellBeingDragged = indexPath
-                
             }
         }
         
-        // Check Paging
-        
-        var normalizedRect = rect
-        normalizedRect.origin.x -= self.contentOffset.x
-        normalizedRect.origin.y -= self.contentOffset.y
-        
-        currentInRect = normalizedRect
-        
-        
-        self.checkForEdgesAndScroll(normalizedRect)
-        
-        
+        self.currentInRect = rect;
     }
     
     public func didMoveOutItem(_ item : AnyObject) -> Void {
-        
         guard let dragDropDataSource = self.dataSource as? KDDragAndDropCollectionViewDataSource,
             let existngIndexPath = dragDropDataSource.collectionView(self, indexPathForDataItem: item) else {
                 
@@ -407,6 +405,7 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         self.draggingPathOfCellBeingDragged = nil
         
         currentInRect = nil
+        self.animator.stopAnimation(false)
     }
     
     
@@ -416,18 +415,31 @@ open class KDDragAndDropCollectionView: UICollectionView, KDDraggable, KDDroppab
         if  let index = draggingPathOfCellBeingDragged,
             let cell = self.cellForItem(at: index), cell.isHidden == true {
             
-            cell.alpha = 1
+            cell.alpha = 1.0
             cell.isHidden = false
-            
         }
         
         currentInRect = nil
+        if (animator.state != .stopped) {
+            self.animator.stopAnimation(true)
+        }
         
         self.draggingPathOfCellBeingDragged = nil
         
         self.reloadData()
-        
     }
     
+    public func draggingOriginOfCell() -> CGPoint? {
+        if  let index = draggingPathOfCellBeingDragged,
+            let cell = self.cellForItem(at: index) {
+            //            return self.convert(cell.frame.origin, from: cell.contentView)
+            
+            self.convert(cell.frame.origin, from: self)
+            
+            return cell.frame.origin
+        }
+        
+        return nil
+    }
     
 }

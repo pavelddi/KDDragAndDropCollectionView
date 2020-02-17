@@ -54,6 +54,13 @@ extension UIColor {
 let colours = [UIColor.kdBrown, UIColor.kdGreen, UIColor.kdBlue]
 
 class ViewController: UIViewController, KDDragAndDropCollectionViewDataSource {
+    func shouldAnchorFirstItem() -> Bool {
+        return true
+    }
+    
+    func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool {
+        return true;
+    }
    
     @IBOutlet weak var firstCollectionView: KDDragAndDropCollectionView!
     @IBOutlet weak var secondCollectionView: KDDragAndDropCollectionView!
