@@ -59,6 +59,8 @@ public protocol KDDroppable {
     @objc public var didBeginDragging: (() -> Void)?
     @objc public var didEndDragging: (() -> Void)?
     @objc public var didDropIntoRemoveView: (() -> Void)?
+    @objc public var startedDraggingOverDropView: (() -> Void)?
+    @objc public var stoppedDraggingOverDropView: (() -> Void)?
     
     struct Bundle {
         var offset : CGPoint = CGPoint.zero
@@ -190,11 +192,7 @@ public protocol KDDroppable {
                 bundle.representationImageView.center = pointOnCanvas
             }
             
-            if #available(iOS 10.0, *) {
-                animator.startAnimation()
-            } else {
-                // Fallback on earlier versions
-            }
+            animator.startAnimation()
             
             var overlappingAreaMAX: CGFloat = 0.0
             
@@ -222,11 +220,7 @@ public protocol KDDroppable {
                     
                     mainOverView = view
                 }
-                
-                
             }
-            
-            
             
             if let droppable = mainOverView as? KDDroppable {
                 
@@ -234,8 +228,16 @@ public protocol KDDroppable {
                 
                 if droppable.canDropAtRect(rect) {
                     
+                    // Send callbacks if we have added drop to delete view previously
+                    if let dropView = dropToDeleteView {
+                        if isCellInBoundsOf(dropView: dropView, bundle: bundle) {
+                            self.startedDraggingOverDropView?()
+                        } else {
+                            self.stoppedDraggingOverDropView?()
+                        }
+                    }
+                    
                     if mainOverView != bundle.overDroppableView { // if it is the first time we are entering
-                        
                         (bundle.overDroppableView as! KDDroppable).didMoveOutItem(bundle.dataItem)
                         droppable.willMoveItem(bundle.dataItem, inRect: rect)
                     }
@@ -249,9 +251,8 @@ public protocol KDDroppable {
             
         case .ended :
             
-            // FIXME: Add all the new code to the repo on GH
             if let dropView = dropToDeleteView {
-                if checkIfCellDroppedIn(dropView: dropView, bundle: bundle) {
+                if isCellInBoundsOf(dropView: dropView, bundle: bundle) {
                     if let droppable = bundle.overDroppableView as? KDDroppable {
                         sourceDraggable.dragDataItem(bundle.dataItem)
                         let rect = self.canvas.convert(bundle.representationImageView.frame, to: bundle.overDroppableView)
@@ -323,22 +324,23 @@ public protocol KDDroppable {
         return r
     }
     
-    private func checkIfCellDroppedIn(dropView: UIView, bundle: Bundle) -> Bool {
-        // Check if current item is over dropToDelete view
-        print("Drop view rect - \(dropView.frame)")
-        print("Current cell frame - \(bundle.representationImageView.frame)")
-        
+    private func isCellInBoundsOf(dropView: UIView, bundle: Bundle) -> Bool {
+        // Check if representation image view is dropped/ragged in bounds of dropView
         let representationViewFrame = bundle.representationImageView.frame
-        /** If representation image view is dropped in bounds of dropView
-            send deletion callback to the delegate
-         */
+        
+        // Define proper bounds of the dropView
         let minX = dropView.frame.origin.x
         let minY = dropView.frame.origin.y
         let maxX = dropView.frame.size.width
         let maxY = dropView.frame.size.height
         
-        let isWithinXCoordinate = representationViewFrame.origin.x >= minX && representationViewFrame.origin.x <= maxX
-        let isWithinYCoordinate = representationViewFrame.origin.y >= minY && representationViewFrame.origin.y <= maxY
+        // Define the center of the represetationView
+        let representationCenterX = representationViewFrame.origin.x + representationViewFrame.size.width/2
+        let representationCenterY = representationViewFrame.origin.y + representationViewFrame.size.height/2
+        
+        // Check if represetnationView center is within dropView bounds
+        let isWithinXCoordinate = representationCenterX >= minX && representationViewFrame.origin.x <= maxX
+        let isWithinYCoordinate = representationCenterY >= minY && representationViewFrame.origin.y <= maxY
         
         return isWithinXCoordinate && isWithinYCoordinate
     }
