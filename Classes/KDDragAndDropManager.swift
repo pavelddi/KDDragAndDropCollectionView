@@ -49,6 +49,8 @@ public protocol KDDroppable {
     func draggingOriginOfCell() -> CGPoint?
 }
 
+typealias SensetivityDeviation = (x: CGFloat, y: CGFloat)
+
 @available(iOS 10.0, *)
 @objcMembers public class KDDragAndDropManager: NSObject, UIGestureRecognizerDelegate {
     
@@ -74,6 +76,10 @@ public protocol KDDroppable {
     var animator: UIViewPropertyAnimator = UIViewPropertyAnimator()
     
     var dropToDeleteView: UIView?
+    /**
+     Set this if you need to remove some space from drop to delete calculations.
+     */
+    var sensetivityDeviation: SensetivityDeviation = (0.0, 0.0)
     
     public init(canvas : UIView, collectionViews : [UIView]) {
         
@@ -89,11 +95,12 @@ public protocol KDDroppable {
         self.views = collectionViews
     }
     
-    public init(canvas : UIView, collectionViews : [UIView], dropToDeleteView : UIView? = nil) {
+    public init(canvas: UIView, collectionViews: [UIView], dropToDeleteView: UIView? = nil, sensetivityDeviationX: CGFloat = 0.0, sensetivityDeviationY: CGFloat = 0.0) {
         super.init()
         
         self.canvas = canvas
         self.dropToDeleteView = dropToDeleteView
+        self.sensetivityDeviation = (sensetivityDeviationX, sensetivityDeviationY)
         
         self.longPressGestureRecogniser.delegate = self
         self.longPressGestureRecogniser.minimumPressDuration = 0.45
@@ -335,12 +342,12 @@ public protocol KDDroppable {
         let maxY = dropView.frame.size.height
         
         // Define the center of the represetationView
-        let representationCenterX = representationViewFrame.origin.x + representationViewFrame.size.width/2
-        let representationCenterY = representationViewFrame.origin.y + representationViewFrame.size.height/2
+        let representationCenterX = (representationViewFrame.origin.x + representationViewFrame.size.width/2) - sensetivityDeviation.x
+        let representationCenterY = (representationViewFrame.origin.y + representationViewFrame.size.height/2) - sensetivityDeviation.y
         
         // Check if represetnationView center is within dropView bounds
-        let isWithinXCoordinate = representationCenterX >= minX && representationViewFrame.origin.x <= maxX
-        let isWithinYCoordinate = representationCenterY >= minY && representationViewFrame.origin.y <= maxY
+        let isWithinXCoordinate = representationCenterX >= minX && representationCenterX <= maxX
+        let isWithinYCoordinate = representationCenterY >= minY && representationCenterY <= maxY
         
         return isWithinXCoordinate && isWithinYCoordinate
     }
