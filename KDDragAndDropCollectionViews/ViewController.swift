@@ -54,6 +54,10 @@ extension UIColor {
 let colours = [UIColor.kdBrown, UIColor.kdGreen, UIColor.kdBlue]
 
 class ViewController: UIViewController, KDDragAndDropCollectionViewDataSource {
+	func didDropItem() {
+		
+	}
+	
     func shouldAnchorFirstItem() -> Bool {
         return true
     }

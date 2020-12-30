@@ -35,6 +35,7 @@ import UIKit
     func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool
     
     func shouldAnchorFirstItem() -> Bool
+	func didDropItem() -> Void
 }
 
 @available(iOS 10.0, *)
@@ -167,9 +168,7 @@ import UIKit
         
         if self.animating {
             self.deleteItems(at: [existngIndexPath])
-        }
-        else {
-            
+        } else {
             self.animating = true
             self.performBatchUpdates({ () -> Void in
                 self.deleteItems(at: [existngIndexPath])
@@ -425,7 +424,9 @@ import UIKit
         }
         
         self.draggingPathOfCellBeingDragged = nil
-        
+		if let dragDropDS = self.dataSource as? KDDragAndDropCollectionViewDataSource {
+			dragDropDS.didDropItem()
+		}
         self.reloadData()
     }
     
