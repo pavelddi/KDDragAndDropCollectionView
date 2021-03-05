@@ -166,8 +166,11 @@ typealias SensetivityDeviation = (x: CGFloat, y: CGFloat)
             sourceDraggable.startDraggingAtPoint(pointOnSourceDraggable)
             self.didBeginDragging?()
             
-            // TODO: Create a callback for getting frame for overlay
-            let overlayView = UIView(frame: CGRect(x: 13, y: 14, width: 60, height: 60))
+			let representationViewSize = bundle.representationImageView.frame.size
+			let overlayView = UIView(frame: CGRect(x: 10,
+												   y: 10,
+												   width: representationViewSize.width,
+												   height: representationViewSize.height))
             overlayView.backgroundColor = UIColor.black.withAlphaComponent(0.6)
             overlayView.layer.masksToBounds = true
             overlayView.layer.cornerRadius = 10
