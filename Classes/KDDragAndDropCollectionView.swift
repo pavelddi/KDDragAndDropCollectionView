@@ -35,6 +35,7 @@ import UIKit
     func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool
     
     func shouldAnchorFirstItem() -> Bool
+	func shouldAnchorLastItem() -> Bool
 	func didDropItem() -> Void
 }
 
@@ -350,8 +351,11 @@ import UIKit
             let indexPath = self.indexPathForCellOverlappingRect(rect) {
             
             let anchorFirst = dragDropDS.shouldAnchorFirstItem()
+			let anchroLast = dragDropDS.shouldAnchorLastItem()
             let isFirstElement = indexPath.row == 0
-            let shouldMove = !(isFirstElement && anchorFirst)
+			let isLastElement = indexPath.row == self.numberOfItems(inSection: indexPath.section) - 1
+            let shouldMove = !(isFirstElement && anchorFirst) && !(isLastElement && anchroLast)
+			
             if indexPath.item != existingIndexPath.item && shouldMove {
                 
                 dragDropDS.collectionView(self, moveDataItemFromIndexPath: existingIndexPath, toIndexPath: indexPath)

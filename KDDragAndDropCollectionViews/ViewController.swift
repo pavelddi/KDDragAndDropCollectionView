@@ -54,16 +54,10 @@ extension UIColor {
 let colours = [UIColor.kdBrown, UIColor.kdGreen, UIColor.kdBlue]
 
 class ViewController: UIViewController, KDDragAndDropCollectionViewDataSource {
-	func didDropItem() {
-		
-	}
+
 	
-    func shouldAnchorFirstItem() -> Bool {
-        return true
-    }
-    
     func collectionView(_ collectionView: UICollectionView, cellIsDraggableAtIndexPath indexPath: IndexPath) -> Bool {
-        return true;
+		return indexPath.row != 0 && indexPath.row != collectionView.numberOfItems(inSection: indexPath.section) - 1
     }
    
     @IBOutlet weak var firstCollectionView: KDDragAndDropCollectionView!
@@ -73,13 +67,15 @@ class ViewController: UIViewController, KDDragAndDropCollectionViewDataSource {
     var data : [[DataItem]] = [[DataItem]]()
     
     var dragAndDropManager : KDDragAndDropManager?
+	
+	private let count = 20
     
     override func viewDidLoad() {
         
         super.viewDidLoad()
         
         // generate some mock data (change in real world project)
-        self.data = (0...2).map({ i in (0...20).map({ j in DataItem("\(String(i)):\(String(j))", colours[i])})})
+        self.data = (0...2).map({ i in (0...count).map({ j in DataItem("\(String(i)):\(String(j))", colours[i])})})
      
         self.dragAndDropManager = KDDragAndDropManager(
             canvas: self.view,
@@ -159,8 +155,18 @@ class ViewController: UIViewController, KDDragAndDropCollectionViewDataSource {
         return nil
         
     }
-    
-
+	
+	func shouldAnchorFirstItem() -> Bool {
+		return true
+	}
+	
+	func shouldAnchorLastItem() -> Bool {
+		return true
+	}
+	
+	func didDropItem() {
+		// STUB
+	}
 }
 
 
